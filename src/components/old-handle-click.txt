@@ -1,0 +1,319 @@
+  handleClick(i) {
+    var squares = [...this.state.squares];
+    //if sourceSelection is -1, nothing has been selected yet
+    var pawnPromoting = -1;
+    var guaranteedPromotion = false;
+    if (this.state.pawnPromotingDest != -1) {
+      //bug, make sure the chosen_piece is only one of the four options given
+      var chosen_piece = squares[i]
+      squares = this.state.prevState.squares;
+      squares[this.state.sourceSelection] = chosen_piece
+      /*
+      if (i >= 0 && i < 8) {
+        squares[this.state.sourceSelection] = new Queen(1)
+      } else if (i >= 8 && i < 16) {
+        squares[this.state.sourceSelection] = new Rook(1)
+      } else if (i >= 16 && i < 24) {
+        squares[this.state.sourceSelection] = new Knight(1)
+      } else if (i >= 24 && i < 32) {
+        squares[this.state.sourceSelection] = new Bishop(1)
+      } else if (i >= 56 && i < 64) {
+        squares[this.state.sourceSelection] = new Queen(2)
+      } else if (i >= 48 && i < 56) {
+        squares[this.state.sourceSelection] = new Rook(2)
+      } else if (i >= 40 && i < 48) {
+        squares[this.state.sourceSelection] = new Knight(2)
+      } else if (i >= 32 && i < 40) {
+        squares[this.state.sourceSelection] = new Bishop(2)
+      }
+      */
+      
+      //reset to previous board, change the value of the pawn, and guarantee that isMovePossible runs without any code in between running
+      guaranteedPromotion = true;
+      i = this.state.pawnPromotingDest;
+    }
+    if (this.state.sourceSelection === -1) {
+      //check if you have selected a square where your pieces are on
+      if (!squares[i] || squares[i].player !== this.state.player) {
+        this.setState({ status: "Wrong selection. Choose player " + this.state.player + " pieces." });
+        if (squares[i]) {
+          squares[i].style = { ...squares[i].style, backgroundColor: "" };
+        }
+      }
+      else {
+        //if you have selected a valid square, highlight the square
+        squares[i].style = { ...squares[i].style, backgroundColor: "RGB(111,143,114)" }; // Emerald from http://omgchess.blogspot.com/2015/09/chess-board-color-schemes.html
+        //update that a source has been selected and it can be moved
+        this.setState({
+          status: "Choose destination for the selected piece",
+          sourceSelection: i
+        })
+      }
+      return
+    }
+    //this means a source square has been selected, and we are now looking for a place to move
+    //reset the highlight of the source square
+    squares[this.state.sourceSelection].style = { ...squares[this.state.sourceSelection].style, backgroundColor: "" };
+    //if a piece exists that is the same color on the selected dest, cancel
+    if (squares[i] && squares[i].player === this.state.player) {
+      this.setState({
+        status: "Wrong selection. Choose valid source and destination again.",
+        sourceSelection: -1,
+      });
+    }
+    else {
+      //check which piece is being selected
+      const piece = squares[this.state.sourceSelection].getPiece()
+      const whiteFallenSoldiers = [];
+      const blackFallenSoldiers = [];
+      const whiteHistory = [];
+      const blackHistory = [];
+      //this checks if the square above a pawn is occupied
+      const isDestOccupied = Boolean(squares[i]);
+      var isMovePossible = squares[this.state.sourceSelection].isMovePossible(this.state.sourceSelection, i, isDestOccupied);
+      var isCheckMe = this.isCheckForPlayer(squares, this.state.player)
+      //check if the move is a castle
+      /*
+      In order for a castle to be valid:
+      1. the king must have not moved
+      2. the rook must have not moved
+      3. the path must be clear
+      4. the two spaces the king moves through must be out of check
+      5. the king cannot be in check 
+      */
+      //if all true, set isMovePossible Parameters as such, and move the rook
+      if (piece == "k" && !isCheckMe && squares[this.state.sourceSelection].hasNotMoved()) {
+        //the above if() checks parameters 1 and 5
+        if (i === this.state.sourceSelection + 2 && squares[this.state.sourceSelection +3]) {
+          if (squares[this.state.sourceSelection +3].getPiece() == "r" && squares[this.state.sourceSelection +3].hasNotMoved()) {
+            //the above if checks parameter 2
+            const isDestPathOccupied = Boolean(squares[i-1])
+            //if the path is empty for the king, check if either squares would be check
+            if (!isDestOccupied && !isDestPathOccupied) {
+              //the above if checks parameter 3
+              //set new location
+              squares[i-1] = squares[this.state.sourceSelection];
+              //remove piece from source
+              squares[this.state.sourceSelection] = null;
+              isCheckMe = this.isCheckForPlayer(squares, this.state.player)
+              if (!isCheckMe) {
+                //set new location
+                squares[i] = squares[i-1];
+                //remove piece from source
+                squares[i-1] = null;
+                isCheckMe = this.isCheckForPlayer(squares, this.state.player)
+                if (!isCheckMe) {
+                  //after this if(), parameter 4 is fulfilled, making the castle valid
+                  isMovePossible = true
+                  //reset the positions of the squares for the actual move, and manually move the rook
+                  squares[this.state.sourceSelection] = squares[i]
+                  squares[i] = null;
+                  squares[this.state.sourceSelection+1] = squares[this.state.sourceSelection+3]
+                  squares[this.state.sourceSelection+3] = null
+                }
+              }
+            }
+          }
+        } else if (i === this.state.sourceSelection - 2 && squares[this.state.sourceSelection - 4]) {
+          if (squares[this.state.sourceSelection - 4].getPiece() == "r" && squares[this.state.sourceSelection - 4].hasNotMoved()) {
+            //the above if checks parameter 2
+            const isDestPathOccupied = Boolean(squares[i+1])
+            //if the path is empty for the king, check if either squares would be check
+            if (!isDestOccupied && !isDestPathOccupied) {
+              //the above if checks parameter 3
+              //set new location
+              squares[i+1] = squares[this.state.sourceSelection];
+              //remove piece from source
+              squares[this.state.sourceSelection] = null;
+              isCheckMe = this.isCheckForPlayer(squares, this.state.player)
+              if (!isCheckMe) {
+                //set new location
+                squares[i] = squares[i+1];
+                //remove piece from source
+                squares[i+1] = null;
+                isCheckMe = this.isCheckForPlayer(squares, this.state.player)
+                if (!isCheckMe) {
+                  //after this if(), parameter 4 is fulfilled, making the castle valid
+                  isMovePossible = true
+                  //reset the positions of the squares for the actual move, and manually move the rook
+                  squares[this.state.sourceSelection] = squares[i]
+                  squares[i] = null;
+                  squares[this.state.sourceSelection-1] = squares[this.state.sourceSelection-4]
+                  squares[this.state.sourceSelection-4] = null
+                }
+              }
+            }
+          }
+        }
+      }
+      //check if move is a pawn
+      var pawnBoosted = -1;
+      if (piece == "" && this.state.pawnPromotingDest == -1) {
+        //check if the move is a 2 space up pawn move, so we can store that information for en passant
+        const pawnOrigin = this.state.sourceSelection;
+        if (i === pawnOrigin+16 || i === pawnOrigin-16) {
+          pawnBoosted = i
+          //console.log(pawnBoosted)
+        }
+        //check en passant
+        //to do en passant, the pawn must be 3 spaces above its origin, and the last move must have been a pawn next to him
+        //if white, the pawn must be at the 5th rank (24-31). If black, the pawn must be at the 4th (32-39)
+        if (this.state.player === 1) {
+          if (pawnOrigin > 23 && pawnOrigin < 32) {
+            if (this.state.pawnBoost != -1) {
+              if (Math.min(pawnOrigin+1, 31) == this.state.pawnBoost && i == this.state.pawnBoost-8) {
+                isMovePossible = true;
+                //manually remove pawn taken
+                blackFallenSoldiers.push(squares[this.state.pawnBoost]);
+                squares[this.state.pawnBoost] = null
+              } else if (Math.max(pawnOrigin-1, 24) == this.state.pawnBoost && i == this.state.pawnBoost-8) {
+                isMovePossible = true;
+                blackFallenSoldiers.push(squares[this.state.pawnBoost]);
+                squares[this.state.pawnBoost] = null
+              }
+            }
+          }
+        } else {
+          if (pawnOrigin > 31 && pawnOrigin < 40) {
+            if (this.state.pawnBoost != -1) {
+              if (Math.min(pawnOrigin+1, 32) == this.state.pawnBoost && i == this.state.pawnBoost+8) {
+                isMovePossible = true;
+                //manually remove pawn taken
+                whiteFallenSoldiers.push(squares[this.state.pawnBoost]);
+                squares[this.state.pawnBoost] = null
+              } else if (Math.max(pawnOrigin-1, 39) == this.state.pawnBoost && i == this.state.pawnBoost+8) {
+                isMovePossible = true;
+                whiteFallenSoldiers.push(squares[this.state.pawnBoost]);
+                squares[this.state.pawnBoost] = null
+              }
+            }
+          }
+        }
+        //check for pawn promotion
+        if (this.state.player == 1) {
+          if (i >= 0 && i < 8) {
+            pawnPromoting = i
+            //squares[pawnOrigin] = new Queen(1)
+          }
+        } else {
+          if (i >= 56 && i < 64) {
+            pawnPromoting = i
+            //squares[pawnOrigin] = new Queen(2)
+          }
+        }
+      }
+
+      //if move is possible
+      if (isMovePossible || guaranteedPromotion) {
+        
+        //if move is possible and an enemy piece exists on that square, take it
+        if (squares[i] !== null) {
+          if (squares[i].player === 1) {
+            whiteFallenSoldiers.push(squares[i]);
+          }
+          else {
+            blackFallenSoldiers.push(squares[i]);
+          }
+        }
+        //update move history
+        if (this.state.player == 1) {
+          whiteHistory.push(piece + i);
+        }
+        else {
+          blackHistory.push(piece + i);
+        }
+        //set new location
+        squares[i] = squares[this.state.sourceSelection];
+        //remove piece from source
+        squares[this.state.sourceSelection] = null;
+        
+        isCheckMe = this.isCheckForPlayer(squares, this.state.player)
+        //if a move puts you in check, cancel the move
+        if (isCheckMe) {
+          this.setState(oldState => ({
+            status: "Wrong selection. Choose valid source and destination again. Now you have a check!",
+            sourceSelection: -1,
+          }))
+        } else {
+          if (pawnPromoting != -1) {
+            //display the four options
+            if (pawnPromoting >= 0 && pawnPromoting < 8) {
+              squares[pawnPromoting] = new Queen(1)
+              squares[pawnPromoting+8] = new Rook(1)
+              squares[pawnPromoting+16] = new Knight(1)
+              squares[pawnPromoting+24] = new Bishop(1)
+            } else if (pawnPromoting >= 56 && pawnPromoting < 64) {
+              squares[pawnPromoting] = new Queen(2)
+              squares[pawnPromoting-8] = new Rook(2)
+              squares[pawnPromoting-16] = new Knight(2)
+              squares[pawnPromoting-24] = new Bishop(2)
+            }
+            this.setState(oldState => ({
+              squares,
+              status: "Select Promotion Piece",
+              prevState: this.state,
+              pawnPromotingDest: pawnPromoting,
+            }))
+            return
+          }
+          //switch players
+          let player = this.state.player === 1 ? 2 : 1;
+          //switch turn color
+          let turn = this.state.turn === 'white' ? 'black' : 'white';
+          //update boardstate and rerender
+          this.setState(oldState => ({
+            sourceSelection: -1,
+            squares,
+            whiteFallenSoldiers: [...oldState.whiteFallenSoldiers, ...whiteFallenSoldiers],
+            blackFallenSoldiers: [...oldState.blackFallenSoldiers, ...blackFallenSoldiers],
+            whiteHistory: [...oldState.whiteHistory, ...whiteHistory],
+            blackHistory: [...oldState.blackHistory, ...blackHistory],
+            player,
+            status: '',
+            turn,
+            prevState: this.state,
+            pawnBoost: pawnBoosted,
+            pawnPromotingDest: -1
+          }));
+          //once the move has been made, check if this is checkmate for the opponent
+          /*
+          if (this.isCheckMateForPlayer(squares, 1)) {
+              //console.log("checkmate")
+              return
+          }
+          */
+          squares[i].hasMoved();
+        }
+      }
+      else {
+        this.setState({
+          status: "Wrong selection. Choose valid source and destination again.",
+          sourceSelection: -1,
+        });
+      }
+    }
+  }
+
+    checkPiece(square) {
+    if (square) {
+      if (square instanceof King) {
+        return "K"
+      }
+      if (square instanceof Queen) {
+        return "Q"
+      }
+      if (square instanceof Bishop) {
+        return "B"
+      }
+      if (square instanceof Knight) {
+        return "N"
+      }
+      if (square instanceof Rook) {
+        return "R"
+      }
+      if (square instanceof Pawn) {
+        return ""
+      }
+    }
+    return ""
+  }
